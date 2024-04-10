@@ -1,4 +1,4 @@
-use anyhow::{bail, Result, Ok, Error};
+use anyhow::Result;
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::{
@@ -7,9 +7,9 @@ use esp_idf_svc::{
     },
     nvs::EspDefaultNvsPartition,
     wifi::EspWifi,
-    ping::{self, EspPing},
-    ipv4::Ipv4Addr,
 };
+use embedded_websocket as ws;
+use std::net::TcpStream;
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
 
@@ -21,6 +21,12 @@ struct Config {
     wifi_ssid: &'static str,
     #[default("BiBiBiBiBi")]
     wifi_psk: &'static str,
+    #[default("echo.websocket.org")]
+    ws_host: &'static str,
+    #[default("8000")]
+    ws_port: &'static str,
+    #[default("/")]
+    ws_endpoint: &'static str,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -45,19 +51,39 @@ fn main() -> anyhow::Result<()> {
     let wifi_mutex_clone = wifi_mutex.clone();
     std::thread::spawn(move || wifi_indicator(indicator_led, wifi_mutex_clone).map_err(|e| {
         log::error!("WiFi Indicator died (;ω;) ({e})");
-        Ok(())
+        anyhow::Ok(())
     }));
 
     // Connect to WiFi
+    log::info!("Connecting to {}", CONFIG.wifi_ssid);
     wifi::connect(wifi_mutex.clone(), CONFIG.wifi_ssid, CONFIG.wifi_psk, sysloop.clone())?;
 
-    let mut ping = EspPing::new(0);
-    let summary = ping.ping(Ipv4Addr::new(9, 9, 9, 9), &ping::Configuration {
-        count: 4,
-        ..Default::default()
-    })?;
+    // Open WS connection
+    let ws_host = format!("{}:{}", CONFIG.ws_host, CONFIG.ws_port);
+    let mut stream = TcpStream::connect(&ws_host).expect("Failed to open TCP connection");
+    let mut read_buf: [u8; 2048] = [0; 2048];
+    let mut write_buf: [u8; 2048] = [0; 2048];
+    let mut read_cursor = 0;
+    let mut websocket = ws::WebSocketClient::new_client(rand::thread_rng());
+    let ws_options = ws::WebSocketOptions {
+        path: CONFIG.ws_endpoint,
+        host: CONFIG.ws_host,
+        origin: &ws_host,
+        sub_protocols: None,
+        additional_headers: None,
+    };
+    let mut framer = ws::framer::Framer::new(&mut read_buf, &mut read_cursor, &mut write_buf, &mut websocket);
+    framer.connect(&mut stream, &ws_options)
+        .expect("Failed to connect framer");
 
-    log::info!("Ping summary: {:?}", summary);
+    log::info!("Connected");
+
+    let message: [u8; 3] = [48,49,50];
+    framer.write(&mut stream, ws::WebSocketSendMessageType::Binary, true, &message)
+        .expect("Failed to send message");
+
+    framer.close(&mut stream, ws::WebSocketCloseStatusCode::NormalClosure, None)
+        .expect("Error during close");
 
     anyhow::Ok(())
 }

@@ -1,3 +1,6 @@
-[hecate-sensor]
-wifi_ssid = "nxp"
+[huginn-sensor]
+wifi_ssid = "Elturel"
 wifi_psk = ""
+ws_host = "http://192.168.110.52"
+ws_port = "8000"
+ws_endpoint = "/ws"
