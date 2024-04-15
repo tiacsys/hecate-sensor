@@ -100,7 +100,10 @@ impl<'a, const BUFSIZE: usize> WebsocketClient<'a, BUFSIZE> {
             Some(tcp_stream) => {
                 let mut framer = Framer::new(&mut self.read_buf, &mut self.read_cursor, &mut self.write_buf, &mut self.websocket);
                 framer.write(tcp_stream, ews::WebSocketSendMessageType::Binary, true, buf)
-                    .map_err(|_| WebSocketClientError::WebSocketError)?;
+                    .map_err(|e| {
+                        log::error!("Framer error: {:?}", e);
+                        WebSocketClientError::WebSocketError
+                    })?;
                 Ok(())
             }
         }
