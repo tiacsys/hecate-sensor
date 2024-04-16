@@ -60,7 +60,9 @@ fn main() -> anyhow::Result<()> {
     let sensor_interface = lsm9ds1::interface::I2cInterface::init(sensor_i2c, ag_addr, mag_addr);
     let mut sensor = LSM9DS1Init::default().with_interface(sensor_interface);
 
-    sensor.begin_accel().expect("Failed to initialize sensor");
+    sensor.begin_accel().expect("Failed to initialize accelerometer");
+    sensor.begin_gyro().expect("Failed to initialize gyroscope");
+    sensor.begin_mag().expect("Failed to initialize magnetometer");
 
     // Setup WiFi
     let wifi = EspWifi::new(p.modem, sysloop.clone(), Some(nvs.clone()))?;    
@@ -79,7 +81,7 @@ fn main() -> anyhow::Result<()> {
     wifi::connect(wifi_mutex.clone(), CONFIG.wifi_ssid, CONFIG.wifi_psk, sysloop.clone())?;
 
     // Open WS connection
-    let mut client = Box::new(ws::WebsocketClient::<4096>::new());
+    let mut client = Box::new(ws::WebSocketClient::<8192>::new());
     client.connect(CONFIG.ws_host, CONFIG.ws_port, CONFIG.ws_endpoint)
         .expect("Websocket client failed to connect");
 
@@ -90,16 +92,27 @@ fn main() -> anyhow::Result<()> {
     let start_time = timer.now();
     loop {
 
-        if let Ok((x, y, z)) = sensor.read_accel() {
+        let acc = sensor.read_accel();
+        let gyro = sensor.read_gyro();
+        let mag = sensor.read_mag();
+
+        if let (Ok(acc), Ok(gyro), Ok(mag)) = (acc, gyro, mag) {
+            let (acc_x, acc_y, acc_z) = acc;
+            let (gyro_x, gyro_y, gyro_z) = gyro;
+            let (mag_x, mag_y, mag_z) = mag;
             let time = timer.now() - start_time;
+            
             let sample = proto::SensorDataSample {
                 time: time.as_secs_f32(),
-                acceleration: Acceleration { x, y, z },
+                acceleration: proto::Acceleration { x: acc_x, y: acc_y, z: acc_z },
+                gyroscope: proto::GyroscopeData { x: gyro_x, y: gyro_y, z: gyro_z },
+                magnetometer: proto::MagnetometerData { x: mag_x, y: mag_y, z: mag_z },
             };
+
             samples.push(sample);
         }
 
-        if samples.len() >= 100 {
+        if samples.len() >= 25 {
             let message = proto::SensorData {
                 id: "feather".into(),
                 samples: samples,

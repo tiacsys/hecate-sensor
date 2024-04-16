@@ -8,7 +8,7 @@ use rand::{
 use embedded_websocket as ews;
 use ews::{framer::Framer, WebSocketOptions};
 
-pub struct WebsocketClient<'a, const BUFSIZE: usize> {
+pub struct WebSocketClient<'a, const BUFSIZE: usize> {
     tcp_stream: Option<TcpStream>,
     websocket: ews::WebSocketClient<ThreadRng>,
     ws_options: ews::WebSocketOptions<'a>,
@@ -32,7 +32,7 @@ impl Display for WebSocketClientError {
 
 impl Error for WebSocketClientError {}
 
-impl<'a, const BUFSIZE: usize> WebsocketClient<'a, BUFSIZE> {
+impl<'a, const BUFSIZE: usize> WebSocketClient<'a, BUFSIZE> {
     pub fn new() -> Self {
         let read_buf = [0; BUFSIZE];
         let write_buf = [0; BUFSIZE];
@@ -87,8 +87,7 @@ impl<'a, const BUFSIZE: usize> WebsocketClient<'a, BUFSIZE> {
             Some(tcp_stream) => {
                 let mut framer = Framer::new(&mut self.read_buf, &mut self.read_cursor, &mut self.write_buf, &mut self.websocket);
                 framer.write(tcp_stream, ews::WebSocketSendMessageType::Text, true, text.as_bytes())
-                    .map_err(|_| WebSocketClientError::WebSocketError)?;
-                Ok(())
+                    .map_err(|_| WebSocketClientError::WebSocketError)
             }
         }
     }
@@ -103,8 +102,7 @@ impl<'a, const BUFSIZE: usize> WebsocketClient<'a, BUFSIZE> {
                     .map_err(|e| {
                         log::error!("Framer error: {:?}", e);
                         WebSocketClientError::WebSocketError
-                    })?;
-                Ok(())
+                    })
             }
         }
     }
