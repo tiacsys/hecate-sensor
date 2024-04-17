@@ -33,6 +33,7 @@ rand = "0.8.5"
 embedded-websocket = "0.9.3"
 hecate-protobuf = { git = "https://github.com/tiacsys/hecate-protobuf" }
 lsm9ds1 = "0.1.0"
+ringbuffer = "0.15.0"
 
 [patch.crates-io]
 esp-idf-hal = { version = "0.43.1", git = "https://github.com/esp-rs/esp-idf-hal", branch = "master" } # Contains patch for GPIO-20
