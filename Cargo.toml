@@ -31,6 +31,8 @@ esp-idf-sys = "0.34.1"
 anyhow = "1.0.81"
 rand = "0.8.5"
 embedded-websocket = "0.9.3"
+hecate-protobuf = { git = "https://github.com/tiacsys/hecate-protobuf" }
+lsm9ds1 = "0.1.0"
 
 [build-dependencies]
 embuild = "0.31.3"

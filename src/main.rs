@@ -8,12 +8,13 @@ use esp_idf_svc::{
     nvs::EspDefaultNvsPartition,
     wifi::EspWifi,
 };
-use embedded_websocket as ws;
-use std::net::TcpStream;
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
+use hecate_protobuf as proto;
+use proto::Message;
 
 mod wifi;
+mod ws;
 
 #[toml_cfg::toml_config]
 struct Config {
@@ -23,8 +24,8 @@ struct Config {
     wifi_psk: &'static str,
     #[default("echo.websocket.org")]
     ws_host: &'static str,
-    #[default("8000")]
-    ws_port: &'static str,
+    #[default(8000)]
+    ws_port: u16,
     #[default("/")]
     ws_endpoint: &'static str,
 }
@@ -59,31 +60,24 @@ fn main() -> anyhow::Result<()> {
     wifi::connect(wifi_mutex.clone(), CONFIG.wifi_ssid, CONFIG.wifi_psk, sysloop.clone())?;
 
     // Open WS connection
-    let ws_host = format!("{}:{}", CONFIG.ws_host, CONFIG.ws_port);
-    let mut stream = TcpStream::connect(&ws_host).expect("Failed to open TCP connection");
-    let mut read_buf: [u8; 2048] = [0; 2048];
-    let mut write_buf: [u8; 2048] = [0; 2048];
-    let mut read_cursor = 0;
-    let mut websocket = ws::WebSocketClient::new_client(rand::thread_rng());
-    let ws_options = ws::WebSocketOptions {
-        path: CONFIG.ws_endpoint,
-        host: CONFIG.ws_host,
-        origin: &ws_host,
-        sub_protocols: None,
-        additional_headers: None,
-    };
-    let mut framer = ws::framer::Framer::new(&mut read_buf, &mut read_cursor, &mut write_buf, &mut websocket);
-    framer.connect(&mut stream, &ws_options)
-        .expect("Failed to connect framer");
+    let mut client = Box::new(ws::WebsocketClient::<2048>::new());
+    client.connect(CONFIG.ws_host, CONFIG.ws_port, CONFIG.ws_endpoint)
+        .expect("Websocket client failed to connect");
 
     log::info!("Connected");
 
-    let message: [u8; 3] = [48,49,50];
-    framer.write(&mut stream, ws::WebSocketSendMessageType::Binary, true, &message)
-        .expect("Failed to send message");
+    loop {
+        let message = proto::Acceleration {
+            x: 1.1,
+            y: 2.2,
+            z: 3.3,
+        };
+        let buffer = message.encode_to_vec();
 
-    framer.close(&mut stream, ws::WebSocketCloseStatusCode::NormalClosure, None)
-        .expect("Error during close");
+        client.send_binary(&buffer)?;
+
+        std::thread::sleep(Duration::from_secs(1));
+    }
 
     anyhow::Ok(())
 }
