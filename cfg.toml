@@ -1,6 +1,6 @@
-[huginn-sensor]
-wifi_ssid = "Elturel"
+[hecate-sensor]
+wifi_ssid = ""
 wifi_psk = ""
-ws_host = "http://192.168.110.52"
-ws_port = "8000"
+ws_host = ""
+ws_port = 8000
 ws_endpoint = "/ws"

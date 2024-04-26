@@ -128,6 +128,9 @@ where
         .expect("Websocket client failed to connect");
     log::info!("Connected");
 
+    // Send ID as text
+    client.send_text("Feather")?;
+
     loop {
         let samples = data_buffer.lock()
             .inspect_err(|e| log::error!("Failed to lock ringbuffer mutex: {}", e))
@@ -136,7 +139,6 @@ where
 
         if let Some(samples) = samples {
             let message = proto::SensorData {
-                id: "feather".into(),
                 samples,
             }.encode_to_vec();
 
